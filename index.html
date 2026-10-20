@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إصدار النماذج الإدارية - نسخة HTML</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <!-- إضافة مكتبة SheetJS لقراءة ملفات الإكسل -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { gDark: '#0B5D4B', gLight: '#7BB661', gTint: '#EAF4E4' },
+                    fontFamily: { sans: ['Tajawal', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root { --g-dark: #0B5D4B; --g-light: #7BB661; --g-tint: #EAF4E4; }
+        body { font-family: 'Tajawal', sans-serif; }
+        .input-cls { width: 100%; border-radius: 0.5rem; border: 1px solid #d1d5db; background: #fff; padding: 0.5rem 0.75rem; font-size: 0.875rem; outline: none; }
+        .input-cls:focus { border-color: var(--g-dark); box-shadow: 0 0 0 2px var(--g-light); }
+        .paper-zoom { zoom: var(--z, 0.8); transform-origin: top center; }
+        
+        .dashed-line { display: inline-block; border-bottom: 1px dotted #4b5563; min-width: 100px; text-align: center; font-weight: bold; line-height: 1.2; }
+        .ruled-text { line-height: 28px; min-height: 84px; background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 27px, #9ca3af 27px, #9ca3af 28px); white-space: pre-wrap; word-break: break-word; font-weight: 600;}
+        
+        @page { size: A4 portrait; margin: 15mm 15mm 18mm 15mm; }
+        @media print {
+            html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+            .no-print { display: none !important; }
+            .preview-wrap { overflow: visible !important; padding: 0 !important; background: #fff !important; height: auto !important; }
+            .paper-zoom { zoom: 1 !important; transform: none !important; }
+            .paper { width: 210mm !important; min-height: 296mm !important; padding: 8mm 15mm 2mm !important; margin: 0 !important; box-shadow: none !important; border: 0 !important; font-size: 12.5px !important; line-height: 1.6 !important; }
+            .keep-together { break-inside: avoid; page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-900 flex flex-col lg:flex-row min-h-screen">
+
+    <!-- لوحة التحكم (الشريط الجانبي) -->
+    <aside class="no-print w-full shrink-0 bg-gray-50 lg:sticky lg:top-0 lg:h-screen lg:w-[430px] lg:overflow-y-auto border-l border-gray-200 shadow-md z-10">
+        <div class="sticky top-0 z-10 border-b-[3px] border-gLight bg-gDark px-4 py-3 text-white">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <h1 class="text-base font-extrabold">إصدار النماذج الإدارية</h1>
+                    <p class="text-xs text-white/80">نسخة الـ HTML بدون سيرفر</p>
+                </div>
+                <button onclick="window.print()" class="rounded-lg bg-white px-4 py-2 text-sm font-bold text-gDark transition hover:bg-gTint">طباعة A4</button>
+            </div>
+        </div>
+
+        <div class="space-y-4 p-4" id="form-controls">
+            <!-- نوع النموذج -->
+            <section class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <h2 class="mb-3 text-sm font-bold text-gDark">نوع النموذج</h2>
+                <select id="inp-type" class="input-cls font-bold text-gDark">
+                    <option value="inquiry">مساءلة موظف</option>
+                    <option value="verbal">تنبيه شفوي لموظف</option>
+                    <option value="written">تنبيه خطي</option>
+                    <option value="notice">لفت نظر</option>
+                    <option value="warning">إنذار</option>
+                </select>
+            </section>
+
+            <!-- استيراد بيانات المعلمين -->
+            <section class="rounded-xl border border-blue-200 bg-blue-50/50 p-4 shadow-sm space-y-3">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-sm font-bold text-blue-800">استيراد أسماء المعلمين</h2>
+                    <span class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">جديد</span>
+                </div>
+                <div class="text-xs text-gray-600 mb-2">اختر ملف إكسل يحتوي على عمود بأسماء المعلمين.</div>
+                <input type="file" id="inp-excel" accept=".xlsx, .xls, .csv" class="text-xs w-full file:mr-0 file:ml-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200">
+                <div id="excel-status" class="text-xs font-bold mt-1 text-gDark hidden"></div>
+            </section>
+
+            <!-- بيانات الموظف -->
+            <section class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
+                <h2 class="text-sm font-bold text-gDark">بيانات الموظف</h2>
+                
+                <!-- حاوية الاسم -->
+                <div>
+                    <div class="flex justify-between items-end mb-1">
+                        <label class="text-xs text-gray-600 block">الاسم</label>
+                        <button id="btn-toggle-name-input" onclick="toggleNameInputType()" class="text-[10px] text-blue-600 hover:underline hidden">العودة للإدخال اليدوي</button>
+                    </div>
+                    
+                    <div id="name-container">
+                        <input type="text" id="inp-name-text" class="input-cls" placeholder="اسم الموظف الرباعي">
+                        <select id="inp-name-select" class="input-cls hidden">
+                            <option value="">اختر اسم المعلم...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div><label class="text-xs text-gray-600 block mb-1">الرقم الوظيفي</label><input type="number" id="inp-jobId" class="input-cls"></div>
+                <div><label class="text-xs text-gray-600 block mb-1">التخصص</label><input type="text" id="inp-specialty" class="input-cls"></div>
+                <div><label class="text-xs text-gray-600 block mb-1">المستوى / الدرجة</label><input type="text" id="inp-level" class="input-cls"></div>
+                <div><label class="text-xs text-gray-600 block mb-1">العمل الحالي</label><input type="text" id="inp-work" class="input-cls" value="معلم"></div>
+            </section>
+
+            <!-- الواقعة -->
+            <section class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
+                <h2 class="text-sm font-bold text-gDark">الواقعة والنص</h2>
+                <div>
+                    <label class="text-xs text-gray-600 block mb-1">يوم وتاريخ الواقعة</label>
+                    <div class="flex gap-2">
+                        <select id="inp-incDay" class="input-cls w-1/3">
+                            <option value="">اليوم</option>
+                            <option value="الأحد">الأحد</option><option value="الاثنين">الاثنين</option>
+                            <option value="الثلاثاء">الثلاثاء</option><option value="الأربعاء">الأربعاء</option>
+                            <option value="الخميس">الخميس</option>
+                        </select>
+                        <input type="text" id="inp-incDate" class="input-cls w-2/3" placeholder="مثال: 12 / 3 / 1448 هـ">
+                    </div>
+                </div>
+
+                <!-- خيارات نوع المخالفة -->
+                <div>
+                    <label class="text-xs text-gray-600 block mb-2">نوع المخالفة</label>
+                    <div class="space-y-2 text-[13px] font-medium text-gray-700">
+                        <label class="flex items-center gap-2"><input type="radio" name="violation" value="1" class="w-4 h-4 accent-gDark"> عدم حضور الحصة</label>
+                        <label class="flex items-center gap-2"><input type="radio" name="violation" value="2" class="w-4 h-4 accent-gDark"> التأخر عن حضور الحصة</label>
+                        <label class="flex items-center gap-2"><input type="radio" name="violation" value="3" class="w-4 h-4 accent-gDark"> عدم حضور حصة الانتظار</label>
+                        <label class="flex items-center gap-2"><input type="radio" name="violation" value="4" class="w-4 h-4 accent-gDark"> عدم حضور المناوبة</label>
+                        <label class="flex items-center gap-2"><input type="radio" name="violation" value="5" class="w-4 h-4 accent-gDark"> عدم حضور اشراف الفسحة</label>
+                        <label class="flex items-center gap-2"><input type="radio" name="violation" value="other" class="w-4 h-4 accent-gDark" checked> أخرى (كتابة يدوية)</label>
+                    </div>
+                </div>
+
+                <!-- الحقول الديناميكية للفصل والحصة -->
+                <div id="class-period-fields" class="hidden flex gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="w-1/2">
+                        <label class="text-xs text-gray-600 block mb-1">الفصل</label>
+                        <input type="text" id="inp-class" class="input-cls" placeholder="مثال: 1/أ">
+                    </div>
+                    <div class="w-1/2">
+                        <label class="text-xs text-gray-600 block mb-1">الحصة</label>
+                        <select id="inp-period" class="input-cls">
+                            <option value="">اختر...</option>
+                            <option value="الأولى">الأولى</option>
+                            <option value="الثانية">الثانية</option>
+                            <option value="الثالثة">الثالثة</option>
+                            <option value="الرابعة">الرابعة</option>
+                            <option value="الخامسة">الخامسة</option>
+                            <option value="السادسة">السادسة</option>
+                            <option value="السابعة">السابعة</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-xs text-gray-600 block mb-1">النص النهائي (سبب المساءلة)</label>
+                    <textarea id="inp-reason" rows="3" class="input-cls resize-y"></textarea>
+                </div>
+            </section>
+            
+            <!-- تاريخ الإصدار -->
+            <section class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
+                <h2 class="text-sm font-bold text-gDark">تاريخ إصدار النموذج</h2>
+                <input type="text" id="inp-date" class="input-cls" placeholder="مثال: 15 / 3 / 1448 هـ">
+            </section>
+
+            <!-- التواقيع -->
+            <section class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
+                <h2 class="text-sm font-bold text-gDark">التواقيع والشعارات (اختياري)</h2>
+                <div><label class="text-xs text-gray-600 block mb-1">وكيل الشؤون التعليمية </label><input type="text" id="inp-agent" class="input-cls"></div>
+                <div><label class="text-xs text-gray-600 block mb-1">مدير المدرسة</label><input type="text" id="inp-principal" class="input-cls"></div>
+                <div class="pt-2 border-t">
+                    <label class="text-xs text-gray-600 block mb-1">شعار الوزارة (صورة)</label>
+                    <input type="file" id="inp-logo-min" accept="image/*" class="text-xs w-full">
+                </div>
+            </section>
+            
+            <button onclick="clearData()" class="w-full text-red-500 text-sm hover:underline py-2">مسح جميع البيانات المحفوظة</button>
+            
+            <!-- حقوق الملكية -->
+            <div class="mt-8 pt-5 border-t border-gray-200/80 text-center">
+                <div class="inline-flex items-center justify-center gap-2 bg-gTint/50 border border-gLight/30 px-4 py-1.5 rounded-full shadow-sm mb-2 transition hover:bg-gTint">
+                    <span class="relative flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-gLight opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-gDark"></span>
+                    </span>
+                    <span class="text-[11px] font-bold text-gDark">تصميم وتطوير</span>
+                </div>
+                <p class="text-[13px] text-gray-700 font-bold mt-1">أ. عبدالله الشهري</p>
+                <p class="text-[10px] text-gray-400 mt-1.5 tracking-wide">جميع الحقوق محفوظة &copy; 1448 هـ</p>
+            </div>
+        </div>
+    </aside>
+
+    <!-- المعاينة الحية للورقة -->
+    <main class="preview-wrap flex-1 bg-gray-300/80 p-4 lg:h-screen lg:p-8 overflow-auto flex flex-col items-center">
+        <!-- أداة التكبير/التصغير -->
+        <div class="no-print mb-4 flex items-center gap-3 rounded-full bg-white px-4 py-1.5 shadow-sm text-sm">
+            <button onclick="changeZoom(-0.1)" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold">-</button>
+            <span id="zoom-val" class="w-12 text-center font-bold text-gDark">80%</span>
+            <button onclick="changeZoom(0.1)" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold">+</button>
+        </div>
+
+        <!-- الورقة A4 -->
+        <div class="paper-zoom transition-transform" id="paper-container">
+            <article class="paper relative flex flex-col bg-white text-[13.5px] leading-[1.75] text-gray-900 shadow-2xl" style="width: 210mm; min-height: 297mm; padding: 15mm 16mm 16mm;">
+                
+                <!-- الترويسة -->
+                <header class="keep-together">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="w-1/3 text-[12.5px] font-bold leading-[1.75] text-gDark">
+                            <div>المملكة العربية السعودية</div>
+                            <div>وزارة التعليم</div>
+                            <div>الإدارة العامة للتعليم بمحافظة جدة</div>
+                            <div>ثانوية الأمير عبدالمجيد الأولى</div>
+                        </div>
+                        
+                        <div class="w-1/3 flex justify-center">
+                            <img id="out-logo-min" class="h-[22mm] max-w-[34mm] object-contain hidden">
+                            <div id="ph-logo-min" class="flex h-[22mm] w-[30mm] items-center justify-center rounded border border-dashed border-gray-400 text-center text-[10px] text-gray-400">شعار<br>الوزارة</div>
+                        </div>
+                        
+                        <div class="w-1/3"></div>
+                    </div>
+                    <div class="mt-3 h-[3px] bg-gDark"></div>
+                    <div class="mt-[2px] h-[2px] bg-gLight"></div>
+                </header>
+
+                <!-- العنوان -->
+                <div class="keep-together mt-5 text-center">
+                    <div id="out-title" class="inline-block min-w-[70mm] rounded-md border-b-[3px] border-gLight bg-gDark px-8 py-1.5 text-[20px] font-extrabold text-white">
+                        مساءلة موظف
+                    </div>
+                    <div class="mt-1 text-[12px] text-gray-600">للعام الدراسي 1448 هـ</div>
+                </div>
+
+                <div class="mt-2 flex justify-between text-[13px]">
+                    <span>التاريخ: <b id="out-date" class="dashed-line">&nbsp;</b></span>
+                </div>
+
+                <!-- الجدول -->
+                <div class="mt-3">
+                    <table class="w-full border-collapse">
+                        <thead>
+                            <tr>
+                                <th class="border border-gDark bg-gTint px-2 py-1 text-[12px] font-bold text-gDark">الاسم</th>
+                                <th class="border border-gDark bg-gTint px-2 py-1 text-[12px] font-bold text-gDark">التخصص</th>
+                                <th class="border border-gDark bg-gTint px-2 py-1 text-[12px] font-bold text-gDark">المستوى/الدرجة</th>
+                                <th class="border border-gDark bg-gTint px-2 py-1 text-[12px] font-bold text-gDark">الرقم الوظيفي</th>
+                                <th class="border border-gDark bg-gTint px-2 py-1 text-[12px] font-bold text-gDark">العمل الحالي</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td id="out-name" class="border border-gDark px-2 py-1.5 text-center text-[13px] font-bold h-8"></td>
+                                <td id="out-specialty" class="border border-gDark px-2 py-1.5 text-center text-[13px] font-bold"></td>
+                                <td id="out-level" class="border border-gDark px-2 py-1.5 text-center text-[13px] font-bold"></td>
+                                <td id="out-jobId" class="border border-gDark px-2 py-1.5 text-center text-[13px] font-bold"></td>
+                                <td id="out-work" class="border border-gDark px-2 py-1.5 text-center text-[13px] font-bold"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- نص النموذج المتغير -->
+                <div id="body-content" class="mt-4 space-y-3"></div>
+
+                <!-- التواقيع -->
+               <footer class="mt-8 pt-2 keep-together">
+                    <div class="flex items-end justify-between px-10">
+                        <div class="w-[62mm] text-center">
+                            <div class="text-[14px] font-bold text-gDark">وكيل الشؤون التعليمية </div>
+                           <div id="out-agent" class="flex h-[12mm] items-end justify-center pb-1 text-[14px] font-bold"></div>
+                            <div class="border-t border-dotted border-gray-700 pt-1 text-[12px] text-gray-600">(الاسم والتوقيع)</div>
+                        </div>
+                        <div class="w-[62mm] text-center">
+                            <div class="text-[14px] font-bold text-gDark">مدير المدرسة</div>
+                           <div id="out-principal" class="flex h-[12mm] items-end justify-center pb-1 text-[14px] font-bold"></div>
+                            <div class="border-t border-dotted border-gray-700 pt-1 text-[12px] text-gray-600">(الاسم والتوقيع)</div>
+                        </div>
+                    </div>
+                    <div id="footer-notes" class="mt-5 border-t border-gray-300 pt-2 text-[11px] text-gray-600 text-center hidden">
+                        صورة لملف الموظف مع التحية والتقدير &nbsp;•&nbsp; صورة لمكتب التعليم / شؤون الموظفين &nbsp;•&nbsp; الأصل في ملف القرارات المدرسية
+                    </div>
+                </footer>
+
+            </article>
+        </div>
+    </main>
+
+    <!-- JavaScript Logic -->
+    <script>
+        let currentZoom = 0.8;
+        function changeZoom(delta) {
+            currentZoom = Math.max(0.4, Math.min(1.5, currentZoom + delta));
+            document.getElementById('paper-container').style.setProperty('--z', currentZoom);
+            document.getElementById('zoom-val').innerText = Math.round(currentZoom * 100) + '%';
+        }
+
+        const templates = {
+            inquiry: {
+                title: "مساءلة موظف", showNotes: false,
+                render: (data) => `
+                    <div class="font-bold text-gDark text-[14px]">طلب الإفادة:</div>
+                    <p>المكرم / <span class="dashed-line" style="min-width: 200px">${data.name}</span> وفقه الله</p>
+                    <p>السلام عليكم ورحمة الله وبركاته،،، وبعد:</p>
+                    <p>اطلعتم على اللوائح والتعليمات المنظمة للعمل المدرسي، بيد أنه بدر منكم يوم: <span class="dashed-line">${data.incDay}</span> الموافق: <b>${data.incDate}</b></p>
+                    <div class="ruled-text">${data.reason}</div>
+                    
+                    <div class="mt-4 space-y-1">
+                        <div class="font-bold text-gDark text-[14px]">آمل الإفادة خطياً:</div>
+                        <!-- تم تقليل min-height قليلاً لتوفير مساحة لاسم وتوقيع المعلم -->
+                        <div class="ruled-text" style="min-height: 84px;"></div>
+                        <!-- إضافة اسم المعلم والتوقيع -->
+                        <div class="flex justify-between items-center px-4 pt-2">
+                            <div><span class="font-bold text-gDark">اسم المعلم: </span><span class="dashed-line" style="min-width: 200px;">&nbsp;</span></div>
+                            <div><span class="font-bold text-gDark">التوقيع: </span><span class="dashed-line" style="min-width: 150px;">&nbsp;</span></div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 space-y-2 rounded-md border border-gDark p-3 bg-white keep-together">
+                        <div class="font-bold text-gDark">قرار مدير المدرسة:</div>
+                        <div class="flex items-center gap-2"><span class="h-3.5 w-3.5 border border-gray-700 inline-block"></span> يُتجاوز عن المساءلة لنظامية العمل.</div>
+                        <div class="flex items-center gap-2"><span class="h-3.5 w-3.5 border border-gray-700 inline-block"></span> ثبوت ما أُشير إليه، والرفع للبحث والأمر.</div>
+                        <div class="flex flex-wrap items-center gap-4">
+                            <div class="flex items-center gap-2"><span class="h-3.5 w-3.5 border border-gray-700 inline-block"></span> يُعتمد عدم قبول العذر ويُعطى:</div>
+                            <div class="flex items-center gap-1"><span class="h-3.5 w-3.5 border border-gray-700 inline-block"></span> تنبيه شفهي</div>
+                            <div class="flex items-center gap-1"><span class="h-3.5 w-3.5 border border-gray-700 inline-block"></span> تنبيه خطي</div>
+                            <div class="flex items-center gap-1"><span class="h-3.5 w-3.5 border border-gray-700 inline-block"></span> لفت نظر</div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 rounded-md bg-gTint p-3 text-[12px] leading-[1.75] keep-together">
+                        <div class="font-bold text-gDark">ملاحظات هامة:</div>
+                        <ol class="list-inside list-decimal">
+                            <li>تُستكمل الاستمارة من مدير المدرسة وإصدار القرار بموجبه.</li>
+                            <li>إبلاغ الموظف بالإجراءات وتحفظ صورة في ملف الموظف والرفع للمكتب.</li>
+                            <li>يُعطى الموظف أسبوعاً لتقديم عذره، فإذا انقضت المدة تُتخذ الإجراءات دون النظر للعذر مستقبلاً.</li>
+                        </ol>
+                    </div>
+                `
+            },
+            verbal: {
+                title: "تنبيه شفوي لموظف", showNotes: true,
+                render: (data) => `
+                    <p>الموظف: <span class="dashed-line" style="min-width: 200px">${data.name}</span></p>
+                    <p>السلام عليكم ورحمة الله وبركاته وبعد ...</p>
+                    <p>بناءً على الصلاحية (13) الواردة في دليل الصلاحيات الممنوحة لمدير المدرسة بالقرار الوزاري رقم 37617168 وتاريخ 1 / 4 / 1437 هـ، والتي تختص بمدير المدرسة.</p>
+                    <p>اطلعتم على اللوائح والتعليمات المنظمة للعمل المدرسي، بيد أنه بدر منكم يوم: <span class="dashed-line">${data.incDay}</span> الموافق: <b>${data.incDate}</b></p>
+                    <div class="ruled-text" style="min-height: 84px">${data.reason}</div>
+                    <p class="font-bold mt-2 text-[14.5px]">وقد تقرر تنبيه المعلم: <span class="dashed-line">${data.name}</span>، وعلى ذلك أُعطي هذا التنبيه لعدم تكرار ذلك.</p>
+                `
+            },
+            written: {
+                title: "تنبيه خطي", showNotes: true,
+                render: (data) => `
+                    <p>الموظف: <span class="dashed-line" style="min-width: 200px">${data.name}</span></p>
+                    <p>السلام عليكم ورحمة الله وبركاته وبعد ...</p>
+                    <p>بناءً على الصلاحية (13) الواردة في دليل الصلاحيات الممنوحة لمدير المدرسة بالقرار الوزاري رقم 37617168 وتاريخ 1 / 4 / 1437 هـ، والتي تختص بمدير المدرسة.</p>
+                    <p>اطلعتم على اللوائح والتعليمات المنظمة للعمل المدرسي، بيد أنه بدر منكم يوم: <span class="dashed-line">${data.incDay}</span> الموافق: <b>${data.incDate}</b></p>
+                    <div class="ruled-text" style="min-height: 84px">${data.reason}</div>
+                    <p class="font-bold mt-2 text-[14.5px]">وقد تقرر توجيه تنبيه خطي لكم لعدم تكرار ذلك، علماً أنه قد تم تنبيهك شفوياً سابقاً،،،</p>
+                `
+            },
+            notice: {
+                title: "لفت نظر", showNotes: true,
+                render: (data) => `
+                    <p>الموظف: <span class="dashed-line" style="min-width: 200px">${data.name}</span></p>
+                    <p>السلام عليكم ورحمة الله وبركاته وبعد ...</p>
+                    <p>بناءً على الصلاحية (13) الواردة في دليل الصلاحيات الممنوحة لمدير المدرسة بالقرار الوزاري رقم 37617168 وتاريخ 1 / 4 / 1437 هـ، والتي تختص بمدير المدرسة.</p>
+                    <p>اطلعتم على اللوائح والتعليمات المنظمة للعمل المدرسي، بيد أنه بدر منكم يوم: <span class="dashed-line">${data.incDay}</span> الموافق: <b>${data.incDate}</b></p>
+                    <div class="ruled-text" style="min-height: 84px">${data.reason}</div>
+                    <p class="font-bold mt-2 text-[14.5px]">وقد تقرر لفت نظرك بعد تنبيهك شفوياً وخطياً وأخذ التعهد منك،،،،</p>
+                    <p class="font-bold text-red-700">وسيتم الرفع للمشرف الفني بتقصيرك وما بدر منك وبالإجراءات المتبعة.</p>
+                `
+            },
+            warning: {
+                title: "إنذار", showNotes: true,
+                render: (data) => `
+                    <p>الموظف: <span class="dashed-line" style="min-width: 200px">${data.name}</span></p>
+                    <p>السلام عليكم ورحمة الله وبركاته وبعد ...</p>
+                    <p>بناءً على الصلاحية (13) الواردة في دليل الصلاحيات الممنوحة لمدير المدرسة بالقرار الوزاري رقم 37617168 وتاريخ 1 / 4 / 1437 هـ، والتي تختص بمدير المدرسة.</p>
+                    <p>اطلعتم على اللوائح والتعليمات المنظمة للعمل المدرسي، بيد أنه بدر منكم يوم: <span class="dashed-line">${data.incDay}</span> الموافق: <b>${data.incDate}</b></p>
+                    <div class="ruled-text" style="min-height: 84px">${data.reason}</div>
+                    <p class="font-bold mt-2 text-[14.5px]">وقد تقرر إنذارك لعدم تكرار ذلك...</p>
+                    <p class="font-bold text-red-700">وسيتم الرفع لمدير المكتب بتقصيرك وما بدر منك وبالإجراءات المتبعة.</p>
+                `
+            }
+        };
+
+        const inputs = ['type', 'jobId', 'specialty', 'level', 'work', 'incDay', 'incDate', 'class', 'period', 'reason', 'date', 'agent', 'principal'];
+        let state = {};
+        
+        let importedTeachers = [];
+
+        function getCurrentName() {
+            const selectEl = document.getElementById('inp-name-select');
+            const textEl = document.getElementById('inp-name-text');
+            if(!selectEl.classList.contains('hidden')) {
+                return selectEl.value;
+            }
+            return textEl.value;
+        }
+
+        function toggleNameInputType(forceText = false) {
+            const selectEl = document.getElementById('inp-name-select');
+            const textEl = document.getElementById('inp-name-text');
+            const btn = document.getElementById('btn-toggle-name-input');
+            
+            if (forceText || !selectEl.classList.contains('hidden')) {
+                selectEl.classList.add('hidden');
+                textEl.classList.remove('hidden');
+                btn.classList.add('hidden');
+                textEl.value = selectEl.value || textEl.value;
+            } else {
+                selectEl.classList.remove('hidden');
+                textEl.classList.add('hidden');
+                btn.classList.remove('hidden');
+                btn.innerText = "العودة للإدخال اليدوي";
+            }
+            updatePreview();
+        }
+
+        function loadState() {
+            try {
+                const saved = localStorage.getItem('formStateHtml');
+                if (saved) state = JSON.parse(saved);
+                
+                const savedTeachers = localStorage.getItem('importedTeachers');
+                if (savedTeachers) {
+                    importedTeachers = JSON.parse(savedTeachers);
+                    populateTeachersSelect(importedTeachers);
+                }
+            } catch(e) {}
+            
+            inputs.forEach(id => {
+                if (state[id] !== undefined) {
+                    const el = document.getElementById('inp-' + id);
+                    if(el) el.value = state[id];
+                }
+            });
+
+            if(state.name !== undefined) {
+                if(importedTeachers.length > 0) {
+                    const selectEl = document.getElementById('inp-name-select');
+                    selectEl.value = state.name;
+                    toggleNameInputType(); 
+                } else {
+                    document.getElementById('inp-name-text').value = state.name;
+                }
+            }
+
+            if (state.violation) {
+                const radio = document.querySelector(`input[name="violation"][value="${state.violation}"]`);
+                if (radio) radio.checked = true;
+            }
+
+            const imgData = localStorage.getItem('logo_min');
+            if (imgData) setLogoDisplay('min', imgData);
+
+            updateFieldsVisibility();
+            updatePreview();
+        }
+
+        function saveState() {
+            inputs.forEach(id => {
+                const el = document.getElementById('inp-' + id);
+                if(el) state[id] = el.value;
+            });
+            
+            state.name = getCurrentName();
+            
+            const activeRadio = document.querySelector('input[name="violation"]:checked');
+            if (activeRadio) state.violation = activeRadio.value;
+
+            localStorage.setItem('formStateHtml', JSON.stringify(state));
+        }
+
+        function clearData() {
+            if(confirm('هل أنت متأكد من مسح جميع البيانات بما في ذلك قائمة المعلمين؟')) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
+
+        function setLogoDisplay(key, dataUrl) {
+            const img = document.getElementById('out-logo-' + key);
+            const ph = document.getElementById('ph-logo-' + key);
+            if (dataUrl) {
+                img.src = dataUrl;
+                img.classList.remove('hidden');
+                ph.classList.add('hidden');
+            } else {
+                img.classList.add('hidden');
+                ph.classList.remove('hidden');
+            }
+        }
+
+        function updateFieldsVisibility() {
+            const val = document.querySelector('input[name="violation"]:checked').value;
+            const extraFields = document.getElementById('class-period-fields');
+            if (["1", "2", "3"].includes(val)) {
+                extraFields.classList.remove('hidden');
+                extraFields.classList.add('flex');
+            } else {
+                extraFields.classList.add('hidden');
+                extraFields.classList.remove('flex');
+            }
+        }
+
+        function updateReasonText() {
+            const type = document.querySelector('input[name="violation"]:checked').value;
+            const cls = document.getElementById('inp-class').value.trim();
+            const prd = document.getElementById('inp-period').value;
+            const reasonInput = document.getElementById('inp-reason');
+            
+            if (type === "other") return;
+            
+            let generatedText = "";
+            const periodStr = prd ? ` ${prd}` : "";
+            const classStr = cls ? ` في فصل (${cls})` : "";
+            
+            switch(type) {
+                case "1": generatedText = `عدم حضور الحصة${periodStr}${classStr}`; break;
+                case "2": generatedText = `التأخر عن حضور الحصة${periodStr}${classStr}`; break;
+                case "3": generatedText = `عدم حضور حصة الانتظار${periodStr}${classStr}`; break;
+                case "4": generatedText = `عدم حضور المناوبة`; break;
+                case "5": generatedText = `عدم حضور اشراف الفسحة`; break;
+            }
+            
+            reasonInput.value = generatedText;
+            updatePreview();
+        }
+
+        function updatePreview() {
+            saveState();
+            const data = state;
+            
+            document.getElementById('out-name').innerText = data.name || '';
+            document.getElementById('out-jobId').innerText = data.jobId || '';
+            document.getElementById('out-specialty').innerText = data.specialty || '';
+            document.getElementById('out-level').innerText = data.level || '';
+            document.getElementById('out-work').innerText = data.work || 'معلم';
+            document.getElementById('out-date').innerHTML = data.date || '&nbsp;';
+            document.getElementById('out-agent').innerText = data.agent || '';
+            document.getElementById('out-principal').innerText = data.principal || '';
+
+            const tpl = templates[data.type || 'inquiry'];
+            document.getElementById('out-title').innerText = tpl.title;
+            
+            const formattedData = { ...data, reason: data.reason ? data.reason.replace(/\n/g, '<br>') : '' };
+            document.getElementById('body-content').innerHTML = tpl.render(formattedData);
+
+            const footerNotes = document.getElementById('footer-notes');
+            if (tpl.showNotes) footerNotes.classList.remove('hidden');
+            else footerNotes.classList.add('hidden');
+        }
+
+        // --- منطق استيراد الإكسل المحدث (قراءة العمود A مباشرة) ---
+        document.getElementById('inp-excel').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const statusEl = document.getElementById('excel-status');
+            statusEl.classList.remove('hidden');
+            statusEl.classList.remove('text-red-600');
+            statusEl.classList.add('text-blue-600');
+            statusEl.innerText = "جاري قراءة الملف...";
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const data = evt.target.result;
+                    const workbook = XLSX.read(data, { type: 'binary' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    let names = [];
+                    // استخدام النطاق الفعلي للصفحة لقراءة العمود الأول حصراً (A أو Index 0)
+                    const range = XLSX.utils.decode_range(worksheet['!ref']);
+                    
+                    for (let R = range.s.r; R <= range.e.r; ++R) {
+                        const cellAddress = { c: 0, r: R }; // c: 0 يعني العمود الأول A
+                        const cellRef = XLSX.utils.encode_cell(cellAddress);
+                        const cell = worksheet[cellRef];
+                        
+                        if (cell && cell.v !== undefined && cell.v !== null) {
+                            const name = String(cell.v).trim();
+                            // استبعاد الترويسات والحروف المفردة
+                            if (name && !name.includes('الاسم') && name !== 'م' && name !== 'م.' && name.length > 2) {
+                                names.push(name);
+                            }
+                        }
+                    }
+
+                    if(names.length > 0) {
+                        importedTeachers = names;
+                        localStorage.setItem('importedTeachers', JSON.stringify(importedTeachers));
+                        populateTeachersSelect(names);
+                        
+                        statusEl.classList.remove('text-blue-600');
+                        statusEl.classList.add('text-gDark');
+                        statusEl.innerText = `تم استيراد ${names.length} معلم بنجاح ✓`;
+                    } else {
+                        throw new Error("لم يتم العثور على أسماء صحيحة في العمود الأول (A).");
+                    }
+                } catch (error) {
+                    statusEl.classList.remove('text-blue-600');
+                    statusEl.classList.add('text-red-600');
+                    statusEl.innerText = "حدث خطأ: " + error.message;
+                    console.error(error);
+                }
+            };
+            reader.readAsBinaryString(file);
+        });
+
+        function populateTeachersSelect(names) {
+            const selectEl = document.getElementById('inp-name-select');
+            selectEl.innerHTML = '<option value="">اختر اسم المعلم...</option>'; 
+            
+            names.forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.innerText = name;
+                selectEl.appendChild(opt);
+            });
+
+            document.getElementById('inp-name-text').classList.add('hidden');
+            selectEl.classList.remove('hidden');
+            
+            const toggleBtn = document.getElementById('btn-toggle-name-input');
+            toggleBtn.classList.remove('hidden');
+            toggleBtn.innerText = "العودة للإدخال اليدوي";
+        }
+
+        // ربط الأحداث
+        inputs.forEach(id => {
+            const el = document.getElementById('inp-' + id);
+            if(el) {
+                el.addEventListener('input', updatePreview);
+                el.addEventListener('change', updatePreview);
+            }
+        });
+        
+        document.getElementById('inp-name-text').addEventListener('input', updatePreview);
+        document.getElementById('inp-name-select').addEventListener('change', updatePreview);
+
+        document.querySelectorAll('input[name="violation"]').forEach(r => {
+            r.addEventListener('change', () => {
+                updateFieldsVisibility();
+                updateReasonText();
+            });
+        });
+        document.getElementById('inp-class').addEventListener('input', updateReasonText);
+        document.getElementById('inp-period').addEventListener('change', updateReasonText);
+
+        ['min'].forEach(key => {
+            document.getElementById('inp-logo-' + key).addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    const dataUrl = ev.target.result;
+                    localStorage.setItem('logo_' + key, dataUrl);
+                    setLogoDisplay(key, dataUrl);
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadState();
+        });
+
+    </script>
+</body>
+</html>
